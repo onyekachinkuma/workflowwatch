@@ -1,0 +1,4 @@
+website_checker_backup.py
+website_checks.log
+__pycache__/
+*.pyc
