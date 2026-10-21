@@ -2,3 +2,5 @@ website_checker_backup.py
 website_checks.log
 __pycache__/
 *.pyc
+website_checker.py.save
+website_checker_before_summary.py
