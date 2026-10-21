@@ -13,6 +13,11 @@ urls = [url.strip() for url in websites.split(",") if url.strip()]
 if not urls:
     print("No website URLs entered. Please try again.")
 else:
+    up_count = 0
+    down_count = 0
+    http_error_count = 0
+    check_failed_count = 0
+
     for url in urls:
         if not url.startswith(("http://", "https://")):
             url = "https://" + url
@@ -44,6 +49,15 @@ else:
             status = "CHECK_FAILED"
             print(f"Error detail: {type(error).__name__}")
 
+        if status == "UP":
+            up_count += 1
+        elif status == "DOWN":
+            down_count += 1
+        elif status == "HTTP_ERROR":
+            http_error_count += 1
+        elif status == "CHECK_FAILED":
+            check_failed_count += 1
+
         print(f"Website: {url}")
         print(f"Time checked: {checked_at}")
         print(f"Status: {status}")
@@ -56,3 +70,11 @@ else:
 
     print("\nAll website checks completed.")
     print("Results saved to website_checks.log")
+    total_checked = up_count + down_count + http_error_count + check_failed_count
+    print("\n========== MONITORING SUMMARY ==========")
+    print(f"Total websites checked: {total_checked}")
+    print(f"UP: {up_count}")
+    print(f"DOWN: {down_count}")
+    print(f"HTTP_ERROR: {http_error_count}")
+    print(f"CHECK_FAILED: {check_failed_count}")
+    print("========================================")
