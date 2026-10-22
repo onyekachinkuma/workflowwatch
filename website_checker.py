@@ -1,6 +1,7 @@
 import urllib.request
 import urllib.error
 import socket
+import time
 from datetime import datetime
 
 websites = input(
@@ -25,6 +26,7 @@ else:
         print(f"\nChecking {url} ...")
         checked_at = datetime.now().isoformat(timespec="seconds")
 
+        start_time = time.perf_counter()
         try:
             request = urllib.request.Request(
                 url,
@@ -49,6 +51,8 @@ else:
             status = "CHECK_FAILED"
             print(f"Error detail: {type(error).__name__}")
 
+        response_time_ms = (time.perf_counter() - start_time) * 1000
+
         if status == "UP":
             up_count += 1
         elif status == "DOWN":
@@ -62,10 +66,11 @@ else:
         print(f"Time checked: {checked_at}")
         print(f"Status: {status}")
         print(f"HTTP code: {http_code}")
+        print(f"Response time: {response_time_ms:.2f} ms")
 
         with open("website_checks.log", "a", encoding="utf-8") as log_file:
             log_file.write(
-                f"{checked_at} | {url} | {status} | HTTP code: {http_code}\n"
+                f"{checked_at} | {url} | {status} | HTTP code: {http_code} | Response time: {response_time_ms:.2f} ms\n"
             )
 
     print("\nAll website checks completed.")
