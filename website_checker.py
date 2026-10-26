@@ -4,15 +4,15 @@ import socket
 import time
 from datetime import datetime
 
-websites = input(
-    "Enter website URLs separated by commas "
-    "(for example, https://example.com, https://www.google.com): "
-).strip()
-
-urls = [url.strip() for url in websites.split(",") if url.strip()]
+with open("monitored_websites.txt", "r", encoding="utf-8") as website_file:
+    urls = [
+        line.strip()
+        for line in website_file
+        if line.strip() and not line.strip().startswith("#")
+    ]
 
 if not urls:
-    print("No website URLs entered. Please try again.")
+    print("No website URLs found in monitored_websites.txt.")
 else:
     up_count = 0
     down_count = 0

@@ -4,3 +4,5 @@ __pycache__/
 *.pyc
 website_checker.py.save
 website_checker_before_summary.py
+website_checker_before_file_input.py
+website_checker_before_response_time.py
