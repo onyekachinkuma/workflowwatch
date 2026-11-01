@@ -7,3 +7,4 @@ website_checker_before_summary.py
 website_checker_before_file_input.py
 website_checker_before_response_time.py
 cron_monitor.log
+website_checker_before_email_alert.py

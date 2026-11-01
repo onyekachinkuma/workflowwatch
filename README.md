@@ -75,3 +75,12 @@ Monitoring pauses when WSL is shut down.
 
 - website_checks.log stores individual website check results.
 - cron_monitor.log stores scheduled monitoring output.
+
+## Email Alerts
+
+WorkflowWatch sends Gmail notifications when a monitored website is classified as DOWN.
+
+- Email alerts use Gmail SMTP with TLS.
+- Gmail credentials are stored outside the project in a private configuration file.
+- The email alert module is maintained separately in email_alert.py.
+- Email delivery failures do not stop website monitoring.

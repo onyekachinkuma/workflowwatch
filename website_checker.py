@@ -3,6 +3,7 @@ import urllib.error
 import socket
 import time
 from datetime import datetime
+from email_alert import send_down_alert
 
 with open("monitored_websites.txt", "r", encoding="utf-8") as website_file:
     urls = [
@@ -72,6 +73,12 @@ else:
             log_file.write(
                 f"{checked_at} | {url} | {status} | HTTP code: {http_code} | Response time: {response_time_ms:.2f} ms\n"
             )
+        if status == "DOWN":
+            try:
+                send_down_alert(url, checked_at)
+            except Exception as error:
+                print(f"Email alert failed: {type(error).__name__}")
+
 
     print("\nAll website checks completed.")
     print("Results saved to website_checks.log")
