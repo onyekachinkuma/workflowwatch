@@ -61,3 +61,17 @@ cat website_checks.log
 ## Learning Goals
 
 This project is helping me practise Python, HTTP requests, error handling, file logging, and monitoring fundamentals as part of my Cloud and DevOps learning journey.
+
+
+## Automatic Monitoring with Cron
+
+WorkflowWatch runs automatically every five minutes using Linux cron.
+
+Cron starts automatically when WSL Ubuntu launches through /etc/wsl.conf.
+
+Monitoring pauses when WSL is shut down.
+
+## Monitoring Logs
+
+- website_checks.log stores individual website check results.
+- cron_monitor.log stores scheduled monitoring output.
