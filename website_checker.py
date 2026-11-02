@@ -6,8 +6,10 @@ import json
 from pathlib import Path
 from datetime import datetime
 from email_alert import send_down_alert, send_recovery_alert
+from state_storage import save_website_states
 
 STATE_FILE = Path("website_states.json")
+
 
 # Load previous website states
 if STATE_FILE.exists():
@@ -111,10 +113,7 @@ else:
             previous_states[url] = status
 
     # Save website states for the next scheduled run
-    STATE_FILE.write_text(
-        json.dumps(previous_states, indent=4),
-        encoding="utf-8"
-    )
+    save_website_states(previous_states)
 
     print("\nAll website checks completed.")
     print("Results saved to website_checks.log")
