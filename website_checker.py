@@ -2,8 +2,23 @@ import urllib.request
 import urllib.error
 import socket
 import time
+import json
+from pathlib import Path
 from datetime import datetime
-from email_alert import send_down_alert
+from email_alert import send_down_alert, send_recovery_alert
+
+STATE_FILE = Path("website_states.json")
+
+# Load previous website states
+if STATE_FILE.exists():
+    try:
+        previous_states = json.loads(STATE_FILE.read_text(encoding="utf-8"))
+        if not isinstance(previous_states, dict):
+            raise ValueError("State file must contain a JSON object")
+    except (json.JSONDecodeError, ValueError) as error:
+        raise SystemExit(f"Cannot read website states: {error}")
+else:
+    previous_states = {}
 
 with open("monitored_websites.txt", "r", encoding="utf-8") as website_file:
     urls = [
@@ -28,6 +43,7 @@ else:
         checked_at = datetime.now().isoformat(timespec="seconds")
 
         start_time = time.perf_counter()
+
         try:
             request = urllib.request.Request(
                 url,
@@ -54,6 +70,8 @@ else:
 
         response_time_ms = (time.perf_counter() - start_time) * 1000
 
+        previous_status = previous_states.get(url, "UNKNOWN")
+
         if status == "UP":
             up_count += 1
         elif status == "DOWN":
@@ -65,7 +83,8 @@ else:
 
         print(f"Website: {url}")
         print(f"Time checked: {checked_at}")
-        print(f"Status: {status}")
+        print(f"Previous status: {previous_status}")
+        print(f"Current status: {status}")
         print(f"HTTP code: {http_code}")
         print(f"Response time: {response_time_ms:.2f} ms")
 
@@ -73,16 +92,36 @@ else:
             log_file.write(
                 f"{checked_at} | {url} | {status} | HTTP code: {http_code} | Response time: {response_time_ms:.2f} ms\n"
             )
-        if status == "DOWN":
-            try:
-                send_down_alert(url, checked_at)
-            except Exception as error:
-                print(f"Email alert failed: {type(error).__name__}")
 
+        notification_sent = True
+
+        try:
+            if status == "DOWN" and previous_status != "DOWN":
+                send_down_alert(url, checked_at)
+
+            elif status == "UP" and previous_status == "DOWN":
+                send_recovery_alert(url, checked_at)
+
+        except Exception as error:
+            notification_sent = False
+            print(f"Email notification failed: {type(error).__name__}")
+
+        # Save the new state only when notification succeeds
+        if status in ("UP", "DOWN") and notification_sent:
+            previous_states[url] = status
+
+    # Save website states for the next scheduled run
+    STATE_FILE.write_text(
+        json.dumps(previous_states, indent=4),
+        encoding="utf-8"
+    )
 
     print("\nAll website checks completed.")
     print("Results saved to website_checks.log")
+    print("Website states saved to website_states.json")
+
     total_checked = up_count + down_count + http_error_count + check_failed_count
+
     print("\n========== MONITORING SUMMARY ==========")
     print(f"Total websites checked: {total_checked}")
     print(f"UP: {up_count}")
