@@ -1,3 +1,6 @@
+import unittest
+
+
 def process_transition(previous_status, current_status, email_succeeds=True):
     notification_required = (
         (current_status == "DOWN" and previous_status != "DOWN")
@@ -19,24 +22,50 @@ def process_transition(previous_status, current_status, email_succeeds=True):
     return "NO EMAIL - STATE UNCHANGED", previous_status
 
 
-tests = [
-    ("UP", "DOWN", True),
-    ("DOWN", "DOWN", True),
-    ("DOWN", "UP", True),
-    ("UP", "UP", True),
-    ("UP", "DOWN", False),
-    ("DOWN", "UP", False),
-    ("UNKNOWN", "DOWN", True),
-]
+class TestIncidentTracking(unittest.TestCase):
 
-for previous, current, email_succeeds in tests:
-    action, new_state = process_transition(
-        previous, current, email_succeeds
-    )
+    def test_website_goes_down(self):
+        self.assertEqual(
+            process_transition("UP", "DOWN"),
+            ("SEND DOWN ALERT", "DOWN")
+        )
 
-    print(
-        f"{previous} -> {current} | "
-        f"Email succeeds: {email_succeeds} | "
-        f"Action: {action} | "
-        f"Saved state: {new_state}"
-    )
+    def test_website_remains_down(self):
+        self.assertEqual(
+            process_transition("DOWN", "DOWN"),
+            ("NO EMAIL", "DOWN")
+        )
+
+    def test_website_recovers(self):
+        self.assertEqual(
+            process_transition("DOWN", "UP"),
+            ("SEND RECOVERY ALERT", "UP")
+        )
+
+    def test_website_remains_up(self):
+        self.assertEqual(
+            process_transition("UP", "UP"),
+            ("NO EMAIL", "UP")
+        )
+
+    def test_down_alert_email_failure(self):
+        self.assertEqual(
+            process_transition("UP", "DOWN", False),
+            ("EMAIL FAILED - RETRY NEXT RUN", "UP")
+        )
+
+    def test_recovery_email_failure(self):
+        self.assertEqual(
+            process_transition("DOWN", "UP", False),
+            ("EMAIL FAILED - RETRY NEXT RUN", "DOWN")
+        )
+
+    def test_unknown_previous_state(self):
+        self.assertEqual(
+            process_transition("UNKNOWN", "DOWN"),
+            ("SEND DOWN ALERT", "DOWN")
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()
