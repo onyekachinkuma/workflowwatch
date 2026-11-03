@@ -49,6 +49,49 @@ class TestEmailAlert(unittest.TestCase):
             send_email("Test Subject", "Test Message")
 
         mock_server.send_message.assert_not_called()
+        mock_smtp.assert_called_once()
+
+    @patch("email_alert.smtplib.SMTP")
+    @patch("pathlib.Path.read_text", return_value=(
+        "GMAIL_ADDRESS=test@example.com\n"
+        "GMAIL_APP_PASSWORD=test-password\n"
+    ))
+    def test_smtp_connection_failure(self, mock_config, mock_smtp):
+
+        with patch("email_alert.time.sleep") as mock_sleep:
+
+            mock_smtp.side_effect = ConnectionRefusedError(
+                "SMTP server unavailable"
+            )
+
+            with self.assertRaises(ConnectionRefusedError):
+                send_email("Test Subject", "Test Message")
+
+            self.assertEqual(mock_smtp.call_count, 3)
+            self.assertEqual(mock_sleep.call_count, 2)
+
+    @patch("email_alert.smtplib.SMTP")
+    @patch("pathlib.Path.read_text", return_value=(
+        "GMAIL_ADDRESS=test@example.com\n"
+        "GMAIL_APP_PASSWORD=test-password\n"
+    ))
+    def test_smtp_retry_then_success(self, mock_config, mock_smtp):
+
+        mock_server = mock_smtp.return_value
+
+        mock_smtp.side_effect = [
+            ConnectionRefusedError("Temporary connection failure"),
+            mock_server
+        ]
+
+        with patch("email_alert.time.sleep") as mock_sleep:
+
+            send_email("Test Subject", "Test Message")
+
+            self.assertEqual(mock_smtp.call_count, 2)
+            mock_sleep.assert_called_once_with(2)
+
+        mock_server.__enter__.return_value.send_message.assert_called_once()
 
     @patch("email_alert.send_email")
     def test_down_alert_message(self, mock_send):
