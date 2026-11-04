@@ -71,8 +71,7 @@ def record_status(incidents, url, status, checked_at=None):
     open_incident = next(
         (
             incident for incident in reversed(incidents)
-            if incident["url"] == url
-            and incident["status"] == "OPEN"
+            if incident["url"] == url and incident["status"] == "OPEN"
         ),
         None
     )
@@ -120,3 +119,31 @@ def mark_notification_sent(incidents, incident_id, notification_type):
             return True
 
     return False
+
+
+def get_pending_notifications(incidents):
+    """Return notifications that have not yet been delivered."""
+
+    pending = []
+
+    for incident in incidents:
+        if (
+            not incident["down_notification_sent"]
+        ):
+            pending.append({
+                "incident_id": incident["incident_id"],
+                "url": incident["url"],
+                "notification_type": "down"
+            })
+
+        if (
+            incident["status"] == "CLOSED"
+            and not incident["recovery_notification_sent"]
+        ):
+            pending.append({
+                "incident_id": incident["incident_id"],
+                "url": incident["url"],
+                "notification_type": "recovery"
+            })
+
+    return pending
