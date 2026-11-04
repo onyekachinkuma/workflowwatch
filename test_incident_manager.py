@@ -1,5 +1,6 @@
 import unittest
 import tempfile
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from incident_manager import (
@@ -8,6 +9,8 @@ from incident_manager import (
     save_incidents,
     load_incidents,
     get_pending_notifications,
+    record_notification_attempt,
+    notification_retry_is_due,
 )
 
 
@@ -108,6 +111,160 @@ class TestIncidentManager(unittest.TestCase):
         second_result = get_pending_notifications(self.incidents)
         self.assertEqual(first_result, second_result)
         self.assertEqual(self.incidents, original_incidents)
+
+
+    def test_notification_attempt_records_failure(self):
+        record_status(self.incidents, self.url, "DOWN")
+        incident_id = self.incidents[0]["incident_id"]
+        attempted_at = "2026-11-04T20:00:00+00:00"
+
+        result = record_notification_attempt(
+            self.incidents,
+            incident_id,
+            "down",
+            error="SMTP connection failed",
+            attempted_at=attempted_at
+        )
+
+        self.assertTrue(result)
+        self.assertEqual(
+            self.incidents[0]["down_notification_attempts"], 1
+        )
+        self.assertEqual(
+            self.incidents[0]["down_notification_last_attempt_at"],
+            attempted_at
+        )
+        self.assertEqual(
+            self.incidents[0]["down_notification_last_error"],
+            "SMTP connection failed"
+        )
+
+    def test_retry_not_due_before_60_seconds(self):
+        record_status(self.incidents, self.url, "DOWN")
+        incident = self.incidents[0]
+        first_attempt = datetime(
+            2026, 11, 4, 20, 0, tzinfo=timezone.utc
+        )
+
+        record_notification_attempt(
+            self.incidents,
+            incident["incident_id"],
+            "down",
+            error="Temporary failure",
+            attempted_at=first_attempt.isoformat()
+        )
+
+        self.assertFalse(
+            notification_retry_is_due(
+                incident,
+                "down",
+                now=first_attempt + timedelta(seconds=59)
+            )
+        )
+
+    def test_retry_due_after_60_seconds(self):
+        record_status(self.incidents, self.url, "DOWN")
+        incident = self.incidents[0]
+        first_attempt = datetime(
+            2026, 11, 4, 20, 0, tzinfo=timezone.utc
+        )
+
+        record_notification_attempt(
+            self.incidents,
+            incident["incident_id"],
+            "down",
+            error="Temporary failure",
+            attempted_at=first_attempt.isoformat()
+        )
+
+        self.assertTrue(
+            notification_retry_is_due(
+                incident,
+                "down",
+                now=first_attempt + timedelta(seconds=60)
+            )
+        )
+
+    def test_retry_stops_after_maximum_attempts(self):
+        record_status(self.incidents, self.url, "DOWN")
+        incident = self.incidents[0]
+
+        for attempt in range(3):
+            record_notification_attempt(
+                self.incidents,
+                incident["incident_id"],
+                "down",
+                error="Temporary failure",
+                attempted_at=f"2026-11-04T20:0{attempt}:00+00:00"
+            )
+
+        self.assertEqual(incident["down_notification_attempts"], 3)
+        self.assertFalse(
+            notification_retry_is_due(
+                incident,
+                "down",
+                now=datetime(2026, 11, 4, 21, 0, tzinfo=timezone.utc)
+            )
+        )
+
+    def test_down_and_recovery_attempts_are_independent(self):
+        record_status(self.incidents, self.url, "DOWN")
+        record_status(self.incidents, self.url, "UP")
+        incident = self.incidents[0]
+        incident_id = incident["incident_id"]
+
+        record_notification_attempt(
+            self.incidents,
+            incident_id,
+            "down",
+            error="DOWN alert failed"
+        )
+
+        record_notification_attempt(
+            self.incidents,
+            incident_id,
+            "recovery",
+            error="Recovery alert failed"
+        )
+
+        self.assertEqual(incident["down_notification_attempts"], 1)
+        self.assertEqual(incident["recovery_notification_attempts"], 1)
+        self.assertEqual(
+            incident["down_notification_last_error"],
+            "DOWN alert failed"
+        )
+        self.assertEqual(
+            incident["recovery_notification_last_error"],
+            "Recovery alert failed"
+        )
+
+    def test_pending_queue_respects_retry_delay(self):
+        record_status(self.incidents, self.url, "DOWN")
+        incident = self.incidents[0]
+        first_attempt = datetime(
+            2026, 11, 4, 20, 0, tzinfo=timezone.utc
+        )
+
+        record_notification_attempt(
+            self.incidents,
+            incident["incident_id"],
+            "down",
+            error="Temporary failure",
+            attempted_at=first_attempt.isoformat()
+        )
+
+        early_check = get_pending_notifications(
+            self.incidents,
+            now=first_attempt + timedelta(seconds=59)
+        )
+        due_check = get_pending_notifications(
+            self.incidents,
+            now=first_attempt + timedelta(seconds=60)
+        )
+
+        self.assertEqual(early_check, [])
+        self.assertEqual(len(due_check), 1)
+        self.assertEqual(due_check[0]["notification_type"], "down")
 
 
 if __name__ == "__main__":
