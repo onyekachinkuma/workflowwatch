@@ -1,5 +1,6 @@
 import json
 import tempfile
+import threading
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -209,6 +210,55 @@ class TestNotificationWorker(unittest.TestCase):
             updated["down_notification_last_attempt_at"],
             "2026-11-05T20:03:00+00:00"
         )
+
+
+
+    def test_concurrent_workers_send_notification_only_once(self):
+        delivery_started = threading.Event()
+        allow_delivery_to_finish = threading.Event()
+        delivery_calls = []
+        worker_results = []
+        worker_errors = []
+
+        def mock_delivery(notification_type, url, checked_at):
+            delivery_calls.append(notification_type)
+            delivery_started.set()
+
+            if not allow_delivery_to_finish.wait(timeout=5):
+                raise TimeoutError("Test delivery timed out")
+
+        def run_worker():
+            try:
+                result = process_pending_notifications(
+                    mock_delivery,
+                    incident_file=self.incident_file
+                )
+                worker_results.append(result)
+            except Exception as error:
+                worker_errors.append(error)
+
+        first_worker = threading.Thread(target=run_worker)
+        second_worker = threading.Thread(target=run_worker)
+
+        first_worker.start()
+        self.assertTrue(delivery_started.wait(timeout=5))
+
+        second_worker.start()
+        allow_delivery_to_finish.set()
+
+        first_worker.join(timeout=5)
+        second_worker.join(timeout=5)
+
+        self.assertFalse(first_worker.is_alive())
+        self.assertFalse(second_worker.is_alive())
+        self.assertEqual(worker_errors, [])
+        self.assertEqual(delivery_calls, ["down"])
+        self.assertEqual(len(worker_results), 2)
+        self.assertEqual(sum(len(result) for result in worker_results), 1)
+
+        updated = self.load_fixture()[0]
+        self.assertTrue(updated["down_notification_sent"])
+        self.assertEqual(updated["down_notification_attempts"], 1)
 
 
 if __name__ == "__main__":

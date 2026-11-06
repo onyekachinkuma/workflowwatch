@@ -1,3 +1,5 @@
+import fcntl
+from contextlib import contextmanager
 import json
 import os
 import tempfile
@@ -7,6 +9,23 @@ from datetime import datetime, timezone
 
 
 INCIDENT_FILE = Path("incidents.json")
+
+
+@contextmanager
+def incident_file_lock(incident_file=INCIDENT_FILE):
+    """Prevent cooperating processes from accessing incidents simultaneously."""
+    incident_file = Path(incident_file)
+    lock_file = incident_file.with_name(
+        incident_file.name + ".lock"
+    )
+
+    with lock_file.open("a+") as lock_handle:
+        fcntl.flock(lock_handle.fileno(), fcntl.LOCK_EX)
+
+        try:
+            yield
+        finally:
+            fcntl.flock(lock_handle.fileno(), fcntl.LOCK_UN)
 
 
 def current_timestamp():
